@@ -6,7 +6,16 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://dayday-flax.vercel.app',
+    'chrome-extension://likohcdekpbgfbcphbdmojoffejidcac',
+    'http://localhost:3000',
+    '*' // Allow all for now during development
+  ],
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'x-api-key']
+}));
 app.use(express.json());
 
 const FTP_HOST = process.env.FTP_HOST || 'ftp.dealerslink.com';
