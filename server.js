@@ -110,6 +110,23 @@ app.get('/inventory', async (req, res) => {
   }
 });
 
+// Debug — see raw first row with all values
+app.get('/debug/firstrow', async (req, res) => {
+  try {
+    const csv = await fetchCSV();
+    const records = parse(csv, { columns: true, skip_empty_lines: true, trim: true });
+    const first = records[0];
+    // Show only keys that have values
+    const populated = {};
+    Object.keys(first).forEach(k => {
+      if (first[k] && first[k].trim()) populated[k] = first[k];
+    });
+    res.json({ all_keys: Object.keys(first), populated_keys: populated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Debug — see raw CSV headers and first row
 app.get('/debug/headers', async (req, res) => {
   try {
