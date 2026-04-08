@@ -45,27 +45,26 @@ async function fetchInventory() {
   console.log('Sample row:', records[0]);
 
   const vehicles = records.map((row, i) => {
-    // Try every possible field name variation
-    const stock = row['Stock'] || row['StockNumber'] || row['stock_number'] || row['stock'] || row['STOCK'] || `${i+1}`;
-    const vin = row['VIN'] || row['Vin'] || row['vin'] || '';
-    const year = row['Year'] || row['year'] || row['YEAR'] || '';
-    const make = row['Make'] || row['make'] || row['MAKE'] || '';
-    const model = row['Model'] || row['model'] || row['MODEL'] || '';
+    // Confirmed DealersLink field names
+    const stock = row['stock_number'] || `${i+1}`;
+    const vin = row['vin'] || '';
+    const year = row['year'] || '';
+    const make = row['make'] || '';
+    const model = row['model'] || '';
 
-    // Price — try many variations
-    const rawPrice = row['Price'] || row['price'] || row['SalePrice'] || row['sale_price'] ||
-      row['ListPrice'] || row['list_price'] || row['RetailPrice'] || row['retail_price'] ||
-      row['OurPrice'] || row['our_price'] || row['InternetPrice'] || row['internet_price'] ||
-      row['SellingPrice'] || row['selling_price'] || row['PRICE'] || '0';
+    // Price — use sale_price, fall back to price
+    const rawPrice = row['sale_price'] || row['price'] || '0';
 
-    // Miles — try many variations
-    const rawMiles = row['Mileage'] || row['mileage'] || row['Miles'] || row['miles'] ||
-      row['Odometer'] || row['odometer'] || row['MILEAGE'] || row['MILES'] || '0';
+    // Miles — field is mileage.value
+    const rawMiles = row['mileage.value'] || '0';
 
-    // Photo
-    const image = row['ImageURL'] || row['image_url'] || row['Photo'] || row['photo'] ||
-      row['MainPhoto'] || row['main_photo'] || row['PhotoURL'] || row['photo_url'] ||
-      row['Image'] || row['image'] || row['Picture'] || row['picture'] || '';
+    // Photos — up to 24 images
+    const images = [];
+    for (let p = 0; p <= 23; p++) {
+      const imgUrl = row[`image[${p}].url`];
+      if (imgUrl && imgUrl.trim()) images.push(imgUrl.trim());
+    }
+    const image = images[0] || '';
 
     const priceNum = parseInt(String(rawPrice).replace(/[^0-9]/g, '')) || 0;
     const milesNum = parseInt(String(rawMiles).replace(/[^0-9]/g, '')) || 0;
@@ -81,6 +80,7 @@ async function fetchInventory() {
       price: priceNum > 0 ? `$${priceNum.toLocaleString()}` : 'Call for price',
       miles: milesNum > 0 ? milesNum.toLocaleString() : '0',
       image,
+      images,
       status: 'green'
     };
   }).filter(v => v.name.trim().length > 1);
