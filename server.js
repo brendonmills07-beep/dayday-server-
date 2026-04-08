@@ -58,13 +58,20 @@ async function fetchInventory() {
     // Miles — field is mileage.value
     const rawMiles = row['mileage.value'] || '0';
 
-    // Photos — up to 24 images
+    // Photos — DealersLink uses image[0].url through image[23].url
+    // Also try image_link as fallback
     const images = [];
-    for (let p = 0; p <= 23; p++) {
-      const imgUrl = row[`image[${p}].url`];
-      if (imgUrl && imgUrl.trim()) images.push(imgUrl.trim());
-    }
-    const image = images[0] || '';
+    const rowKeys = Object.keys(row);
+    // Find all image URL keys
+    rowKeys.forEach(key => {
+      if (key.match(/^image\[\d+\]\.url$/) || key === 'image_link') {
+        const val = row[key];
+        if (val && val.trim() && val.startsWith('http')) {
+          images.push(val.trim());
+        }
+      }
+    });
+    const image = images[0] || row['image_link'] || '';
 
     const priceNum = parseInt(String(rawPrice).replace(/[^0-9]/g, '')) || 0;
     const milesNum = parseInt(String(rawMiles).replace(/[^0-9]/g, '')) || 0;
