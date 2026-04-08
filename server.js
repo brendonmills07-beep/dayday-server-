@@ -176,5 +176,35 @@ app.post('/inventory/refresh', async (req, res) => {
   }
 });
 
+
+// Photo proxy — fetches DealersLink S3 images and serves them
+// This bypasses CORS since our server fetches the image, not Facebook
+app.get('/photo', async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'No URL provided' });
+
+  // Only allow DealersLink S3 URLs for security
+  if (!url.includes('dealerslink') && !url.includes('amazonaws.com')) {
+    return res.status(403).json({ error: 'URL not allowed' });
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return res.status(404).json({ error: 'Image not found' });
+
+    const buffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    res.set({
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=3600'
+    });
+    res.send(Buffer.from(buffer));
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`DayDay server running on port ${PORT}`));
