@@ -51,6 +51,14 @@ async function fetchInventory() {
     const year = row['year'] || '';
     const make = row['make'] || '';
     const model = row['model'] || '';
+    const title = row['title'] || '';
+    const description = row['description'] || '';
+    const bodyStyle = row['body_style'] || '';
+    const fuelType = row['fuel_type'] || '';
+    const transmission = row['transmission'] || '';
+    const drivetrain = row['drivetrain'] || '';
+    const exteriorColor = row['exterior_color'] || '';
+    const condition = row['condition'] || '';
 
     // Price — use sale_price, fall back to price
     const rawPrice = row['sale_price'] || row['price'] || '0';
@@ -73,7 +81,7 @@ async function fetchInventory() {
     });
     const image = images[0] || row['image_link'] || '';
 
-    const priceNum = parseInt(String(rawPrice).replace(/[^0-9]/g, '')) || 0;
+    const priceNum = parseInt(String(rawPrice).replace(' USD','').replace(/[^0-9]/g, '')) || 0;
     const milesNum = parseInt(String(rawMiles).replace(/[^0-9]/g, '')) || 0;
 
     return {
@@ -88,6 +96,14 @@ async function fetchInventory() {
       miles: milesNum > 0 ? milesNum.toLocaleString() : '0',
       image,
       images,
+      title,
+      description,
+      bodyStyle,
+      fuelType,
+      transmission,
+      drivetrain,
+      exteriorColor,
+      condition,
       status: 'green'
     };
   }).filter(v => v.name.trim().length > 1);
