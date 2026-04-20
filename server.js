@@ -5,6 +5,36 @@ const { parse } = require('csv-parse/sync');
 const fs = require('fs');
 const path = require('path');
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map();
+function rateLimit(maxRequests, windowMs) {
+  return (req, res, next) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const key = ip + req.path;
+    const now = Date.now();
+    if (!rateLimitMap.has(key)) {
+      rateLimitMap.set(key, { count: 1, start: now });
+      return next();
+    }
+    const entry = rateLimitMap.get(key);
+    if (now - entry.start > windowMs) {
+      rateLimitMap.set(key, { count: 1, start: now });
+      return next();
+    }
+    if (entry.count >= maxRequests) {
+      return res.status(429).json({ error: 'Too many requests', retryAfter: Math.ceil((windowMs - (now - entry.start)) / 1000) + 's' });
+    }
+    entry.count++;
+    next();
+  };
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of rateLimitMap.entries()) {
+    if (now - val.start > 10 * 60 * 1000) rateLimitMap.delete(key);
+  }
+}, 10 * 60 * 1000);
+
 const app = express();
 app.use(cors({
   origin: [
@@ -126,7 +156,13 @@ async function fetchInventory() {
 app.get('/', (req, res) => res.json({ status: 'DayDay server running', version: '1.1.0' }));
 
 // Get inventory
-app.get('/inventory', async (req, res) => {
+// Sanitize string inputs
+function sanitize(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[<>"'%;()&+]/g, '').trim().slice(0, 500);
+}
+
+app.get('/inventory', rateLimit(30, 5 * 60 * 1000), async (req, res) => {
   try {
     const vehicles = await fetchInventory();
     res.json({ success: true, count: vehicles.length, vehicles });
@@ -179,12 +215,16 @@ app.post('/inventory/refresh', async (req, res) => {
 
 // Photo proxy — fetches DealersLink S3 images and serves them
 // This bypasses CORS since our server fetches the image, not Facebook
-app.get('/photo', async (req, res) => {
+app.get('/photo', rateLimit(200, 60 * 1000), async (req, res) => {
   const url = req.query.url;
-  if (!url) return res.status(400).json({ error: 'No URL provided' });
-
-  // Only allow DealersLink S3 URLs for security
-  if (!url.includes('dealerslink') && !url.includes('amazonaws.com')) {
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'No URL provided' });
+  
+  // Strict URL validation — only allow DealersLink S3 URLs
+  let parsedUrl;
+  try { parsedUrl = new URL(url); } catch(e) { return res.status(400).json({ error: 'Invalid URL' }); }
+  
+  const allowedHosts = ['dealerslink.s3.amazonaws.com', 's3.amazonaws.com'];
+  if (!allowedHosts.some(h => parsedUrl.hostname.endsWith(h))) {
     return res.status(403).json({ error: 'URL not allowed' });
   }
 
