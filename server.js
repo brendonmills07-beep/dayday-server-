@@ -78,7 +78,7 @@ async function fetchInventory() {
   const records = parse(csv, { columns: true, skip_empty_lines: true, trim: true });
   rawHeaders = records.length > 0 ? Object.keys(records[0]) : [];
 
-  const vehicles = records.map((row, i) => {
+  const rawVehicles = records.map((row, i) => {
     const stock = row['stock_number'] || `${i+1}`;
     const vin = row['vin'] || '';
     const year = row['year'] || '';
@@ -112,6 +112,30 @@ async function fetchInventory() {
       image, images, status: 'green'
     };
   }).filter(v => v.name.trim().length > 1);
+
+  // Sort: used vehicles first (mileage > 0), new Mitsubishi last
+  // Within used: newest stock number first (most recently added)
+  const vehicles = rawVehicles.sort((a, b) => {
+    const aMiles = parseInt(String(a.miles).replace(/[^0-9]/g, '')) || 0;
+    const bMiles = parseInt(String(b.miles).replace(/[^0-9]/g, '')) || 0;
+    const aIsNew = aMiles === 0;
+    const bIsNew = bMiles === 0;
+    const aIsMitsu = a.make && a.make.toLowerCase().includes('mitsubishi');
+    const bIsMitsu = b.make && b.make.toLowerCase().includes('mitsubishi');
+
+    // New Mitsubishi always last
+    if (aIsNew && aIsMitsu && !(bIsNew && bIsMitsu)) return 1;
+    if (bIsNew && bIsMitsu && !(aIsNew && aIsMitsu)) return -1;
+
+    // Other new vehicles before Mitsubishi but after used
+    if (aIsNew && !bIsNew) return 1;
+    if (bIsNew && !aIsNew) return -1;
+
+    // Both used or both new — sort by stock number descending (newest first)
+    const aStock = parseInt(String(a.stock).replace(/[^0-9]/g, '')) || 0;
+    const bStock = parseInt(String(b.stock).replace(/[^0-9]/g, '')) || 0;
+    return bStock - aStock;
+  });
 
   inventoryCache = vehicles;
   cacheTime = Date.now();
